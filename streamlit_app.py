@@ -8,6 +8,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import logging
 import pandas as pd
+import httpx
 
 # Configure logging - console only
 logging.basicConfig(
@@ -138,8 +139,9 @@ class SimpleRAGSystem:
             if not openai_api_key:
                 st.error("❌ OpenAI API key not found. Please check your secrets configuration.")
                 st.stop()
-
-            self.openai_client = OpenAI(api_key=openai_api_key)
+            
+            http = httpx.Client(trust_env=False)
+            self.openai_client = OpenAI(api_key=openai_api_key, http_client=http)
             self.openai_client.models.list()
             
             logger.info(f"Connected to OpenAI Models")
