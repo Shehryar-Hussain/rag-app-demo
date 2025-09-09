@@ -221,14 +221,18 @@ class SimpleRAGSystem:
         try:
             if contexts:
                 context_text = "\n\n".join([f"{ctx['text']}\n" for ctx in contexts])
-                prompt = f"""Answer the question based on the context below. 
-                    If the context doesn't contain the answer, say so.
-                    
-                    # Context:
-                    # {context_text}
+                prompt = f"""You are an FAQ assistant. 
+                    Answer the question based only on the context provided. 
+                    If the context does not contain the answer, respond with: "The context does not contain the answer."
 
-                    # Question: {query}
+                    # Context:
+                    {context_text}
+
+                    # Question:
+                    {query}
+
                     # Answer:"""
+
             else:
                 prompt = f"I don't have relevant information to answer: {query}."
 
@@ -558,52 +562,56 @@ def main():
     
     # Main chat interface
     st.header("💬 Chat with your Knowledge Base")
-    
-    # Display chat messages
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
-    
-    # Chat input
-    if prompt := st.chat_input("Ask me anything about us..."):
-        logger.info(f"User query: {prompt[:50]}...")
+    db_stats = rag_system.index.describe_index_stats()
+    db_total = db_stats.get('total_vector_count', 0)
+    if db_total > 0:
+        # Display chat messages
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.write(message["content"])
         
-        # Add user message
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        
-        # Display user message
-        with st.chat_message("user"):
-            st.write(prompt)
-        
-        # Generate and display assistant response
-        with st.chat_message("assistant"):
-            with st.spinner("🤔 Searching knowledge base..."):
-                contexts = rag_system.search_documents(prompt)
-                answer = rag_system.generate_answer(prompt, contexts)
-                
-                # Display answer
-                st.write(answer)
-                
-                # Display context info
-                if contexts:
-                    st.caption(f"📚 Found {len(contexts)} relevant documents")
+        # Chat input
+        if prompt := st.chat_input("Ask me anything..."):
+            logger.info(f"User query: {prompt[:50]}...")
+            
+            # Add user message
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            
+            # Display user message
+            with st.chat_message("user"):
+                st.write(prompt)
+            
+            # Generate and display assistant response
+            with st.chat_message("assistant"):
+                with st.spinner("🤔 Searching knowledge base..."):
+                    contexts = rag_system.search_documents(prompt)
+                    answer = rag_system.generate_answer(prompt, contexts)
                     
-                    # Show sources in expander
-                    with st.expander("🔍 View Sources"):
-                        for i, ctx in enumerate(contexts, 1):
-                            st.write(f"**{i}. {ctx['source']}**, Similarity Score: {ctx['score']}")
-                            st.write(ctx['text'][:300] + "..." if len(ctx['text']) > 300 else ctx['text'])
-                            if i < len(contexts):
-                                st.markdown("---")
-                else:
-                    st.caption("📭 No relevant documents found in knowledge base")
-                
-                # Create full response for session state
-                context_info = f"📚 Found {len(contexts)} relevant documents" if contexts else "📭 No relevant documents found"
-                full_answer = f"{answer}\n\n*{context_info}*"
-                
-                # Add to session state
-                st.session_state.messages.append({"role": "assistant", "content": full_answer})
+                    # Display answer
+                    st.write(answer)
+                    
+                    # Display context info
+                    if contexts:
+                        st.caption(f"📚 Found {len(contexts)} relevant documents")
+                        
+                        # Show sources in expander
+                        with st.expander("🔍 View Sources"):
+                            for i, ctx in enumerate(contexts, 1):
+                                st.write(f"**{i}. {ctx['source']}**, Similarity Score: {ctx['score']}")
+                                st.write(ctx['text'][:300] + "..." if len(ctx['text']) > 300 else ctx['text'])
+                                if i < len(contexts):
+                                    st.markdown("---")
+                    else:
+                        st.caption("📭 No relevant documents found in knowledge base")
+                    
+                    # Create full response for session state
+                    context_info = f"📚 Found {len(contexts)} relevant documents" if contexts else "📭 No relevant documents found"
+                    full_answer = f"{answer}\n\n*{context_info}*"
+                    
+                    # Add to session state
+                    st.session_state.messages.append({"role": "assistant", "content": full_answer})
+    else:
+        st.markdown("### Upload FAQ documents to get started...")
 
 if __name__ == "__main__":
     main()
